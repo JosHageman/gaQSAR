@@ -1,0 +1,7 @@
+^gaQSAR\.Rproj$
+^\.Rproj\.user$
+^R/\.lintr\.R$
+data-raw/
+^gaQSAR-manual\.pdf$
+^README\.md$
+\.github
