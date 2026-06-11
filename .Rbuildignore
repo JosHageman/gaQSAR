@@ -1,4 +1,5 @@
 ^gaQSAR\.Rproj$
+^\.gitignore$
 ^\.Rproj\.user$
 ^R/\.lintr\.R$
 data-raw/

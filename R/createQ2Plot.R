@@ -1,15 +1,14 @@
 #' Plot Q2 versus number of predictors
 #'
 #' Create a diagnostic plot of cross-validated performance against model size.
-#' The figure shows $Q^2$ for the training set (LOOCV) and, when available,
+#' The figure shows Q2 for the training set (LOOCV) and, when available,
 #' the external validation set as a function of the number of selected
 #' predictors. Use this for visual inspection of GA-based variable selection
 #' results and to compare model parsimony versus predictive ability.
 #'
-#' @param output A list-like object where each element corresponds to a model
-#'   of a given size and contains named numeric entries `numVar`, `Q2Loocv`,
-#'   and optionally `Q2Ext`. Typical inputs are elements from GA variable
-#'   selection runs. If `Q2Ext` is absent, only the training curve is drawn.
+#' @param output A `gaQSAR` object or a list of `gaQSAR` objects. Each object
+#'   must contain named numeric entries `numVar`, `Q2Loocv`, and optionally
+#'   `Q2Ext`. If `Q2Ext` is absent, only the training curve is drawn.
 #' @param label Character string used as the plot title (set to `""` for no title).
 #'
 #' @details
@@ -18,20 +17,33 @@
 #' originate from the training (`Q2Loocv`) or external (`Q2Ext`) set. The
 #' x-axis shows the number of predictors; tick labels are limited to integers.
 #'
-#' @return Invisibly returns the created `ggplot2` object for further styling
-#'   or saving.
+#' @return Returns a Q2 versus number of predictors plot.
 #'
 #' @seealso [gaVariableSelection()], [Q2()], [createWilliamsPlot()]
 #'
 #' @export
 createQ2Plot <- function(output, label = "") {
 
+  singleObject <- inherits(output, "gaQSAR")
+  if (singleObject) {
+    output <- list(output)
+  }
+
+  isGaQsars <- vapply(output, inherits, logical(1), what = "gaQSAR")
+  if (!all(isGaQsars)) {
+    stop("`output` must be a gaQSAR object or a list of gaQSAR objects.", call. = FALSE)
+  }
+
   #plot Q2 curve with ggplot
   tmp <- vapply(seq_along(output), function(i) {
-    c(numVar = output[[i]]$numVar, Q2Loocv = output[[i]]$Q2Loocv, Q2Ext = output[[i]]$Q2Ext)
+    Q2Ext <- output[[i]]$Q2Ext
+    if (is.null(Q2Ext)) Q2Ext <- NA_real_
+
+    c(numVar = output[[i]]$numVar, Q2Loocv = output[[i]]$Q2Loocv, Q2Ext = Q2Ext)
   }, numeric(3))
 
   sdat2 <- reshape2::melt(as.data.frame(t(tmp)), id.vars = "numVar")
+  sdat2 <- stats::na.omit(sdat2)
   sdat2_line <- subset(sdat2, stats::ave(numVar, variable, FUN = length) > 1)
 
   p0 <- ggplot2::ggplot(sdat2, ggplot2::aes(x = numVar, y = value)) +
@@ -62,6 +74,5 @@ createQ2Plot <- function(output, label = "") {
       labels = function(x) ifelse(x %% 1 == 0, x, "")
     )
 
-  output[[1]]$q2Plot <- p0
-  return(output)
+  p0
 }

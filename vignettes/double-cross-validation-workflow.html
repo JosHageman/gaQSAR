@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Double cross-validation workflow with gaQSAR</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Double cross-validation workflow with
+gaQSAR</h1>
+
+
+
+<p>This vignette shows the double cross-validation workflow in
+<code>gaQSAR</code>. This workflow is more strict than a single
+train/test split. It separates model selection from model evaluation by
+using an outer cross-validation loop.</p>
+<p>The outer loop leaves out part of the data for testing. Inside each
+training fold, <code>gaVariableSelection()</code> is used to select
+descriptors. The left-out outer fold is then predicted. Repeating this
+over all outer folds gives an external cross-validated estimate of
+predictive performance.</p>
+<p>This is the workflow:</p>
+<ol style="list-style-type: decimal">
+<li>prepare the QSAR data;</li>
+<li>run <code>gaDoubleCrossValidation()</code> for several numbers of
+predictors;</li>
+<li>compare model sizes using training metrics and outer Q2;</li>
+<li>inspect selected descriptors and their stability;</li>
+<li>inspect the Williams plot across outer folds;</li>
+<li>select a model size;</li>
+<li>optionally run a permutation test.</li>
+</ol>
+<p>The code below is based on the AquaticTox example analysis. Set
+<code>smokeTest &lt;- TRUE</code> for a short run.</p>
+<div id="load-packages-and-helper-function" class="section level2">
+<h2>Load packages and helper function</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(gaQSAR)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(QSARdata)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>timestampFileName <span class="ot">&lt;-</span> <span class="cf">function</span>(fileName, <span class="at">time =</span> <span class="fu">Sys.time</span>()) {</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="fu">paste0</span>(<span class="fu">format</span>(time, <span class="st">&quot;%Y%m%d_%H%M%S_&quot;</span>), fileName)</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+<div id="prepare-the-data" class="section level2">
+<h2>Prepare the data</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">data</span>(AquaticTox)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>qsarLabel <span class="ot">&lt;-</span> <span class="st">&quot;AquaticTox&quot;</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>qsarData <span class="ot">&lt;-</span> <span class="fu">cbind</span>(</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="at">activity =</span> AquaticTox_Outcome<span class="sc">$</span>Activity,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  AquaticTox_moe2D[, <span class="sc">-</span><span class="dv">1</span>],</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  AquaticTox_moe3D[, <span class="sc">-</span><span class="dv">1</span>]</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>)</span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>missingColumns <span class="ot">&lt;-</span> <span class="fu">which</span>(<span class="fu">colSums</span>(<span class="fu">is.na</span>(qsarData)) <span class="sc">!=</span> <span class="dv">0</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">length</span>(missingColumns) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a>  qsarData <span class="ot">&lt;-</span> qsarData[, <span class="sc">-</span>missingColumns]</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a>}</span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a>xAll <span class="ot">&lt;-</span> <span class="fu">as.matrix</span>(qsarData[, <span class="sc">-</span><span class="dv">1</span>, <span class="at">drop =</span> <span class="cn">FALSE</span>])</span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a>yAll <span class="ot">&lt;-</span> qsarData[, <span class="dv">1</span>]</span></code></pre></div>
+<p>All compounds are used in the double cross-validation. The external
+validation is created inside the outer cross-validation loop.</p>
+</div>
+<div id="choose-settings" class="section level2">
+<h2>Choose settings</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>smokeTest <span class="ot">&lt;-</span> <span class="cn">FALSE</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>permutationTest <span class="ot">&lt;-</span> <span class="cn">TRUE</span></span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>nWorkers <span class="ot">&lt;-</span> <span class="dv">1</span><span class="dt">L</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>numVars <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>theSeeds <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">5</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>gaSettings <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">pMutation =</span> <span class="fl">0.2</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="at">pCrossover =</span> <span class="fl">0.7</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>  <span class="at">popSize =</span> <span class="dv">300</span>,</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>  <span class="at">maxIter =</span> <span class="dv">300</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a>  <span class="at">interval =</span> <span class="dv">50</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a>  <span class="at">elitism =</span> <span class="dv">30</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a>  <span class="at">crossoverType =</span> <span class="st">&quot;gaintegerOnePointCrossover&quot;</span></span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a>)</span>
+<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a>outerK <span class="ot">&lt;-</span> <span class="dv">5</span></span>
+<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a>outerSeed <span class="ot">&lt;-</span> <span class="dv">1</span></span>
+<span id="cb3-20"><a href="#cb3-20" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" tabindex="-1"></a><span class="cf">if</span> (smokeTest) {</span>
+<span id="cb3-22"><a href="#cb3-22" tabindex="-1"></a>  gaSettings<span class="sc">$</span>popSize <span class="ot">&lt;-</span> <span class="dv">25</span></span>
+<span id="cb3-23"><a href="#cb3-23" tabindex="-1"></a>  gaSettings<span class="sc">$</span>maxIter <span class="ot">&lt;-</span> <span class="dv">10</span></span>
+<span id="cb3-24"><a href="#cb3-24" tabindex="-1"></a>  gaSettings<span class="sc">$</span>elitism <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb3-25"><a href="#cb3-25" tabindex="-1"></a>  gaSettings<span class="sc">$</span>interval <span class="ot">&lt;-</span> <span class="dv">5</span></span>
+<span id="cb3-26"><a href="#cb3-26" tabindex="-1"></a>  numVars <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>)</span>
+<span id="cb3-27"><a href="#cb3-27" tabindex="-1"></a>  theSeeds <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">2</span></span>
+<span id="cb3-28"><a href="#cb3-28" tabindex="-1"></a>  outerK <span class="ot">&lt;-</span> <span class="dv">3</span></span>
+<span id="cb3-29"><a href="#cb3-29" tabindex="-1"></a>}</span></code></pre></div>
+<p>The vector <code>numVars</code> defines the model sizes to compare.
+For each model size, a full double cross-validation is run.</p>
+<p>The <code>outerSeed</code> fixes the outer fold split. The
+<code>theSeeds</code> vector controls repeated GA runs within the
+training part of each outer fold.</p>
+</div>
+<div id="run-double-cross-validation" class="section level2">
+<h2>Run double cross-validation</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>baseArgs <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>  <span class="at">x =</span> xAll,</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>  <span class="at">y =</span> yAll,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>  <span class="at">outerMethod =</span> <span class="st">&quot;kfold&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>  <span class="at">outerK =</span> outerK,</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a>  <span class="at">seed =</span> outerSeed,</span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>  <span class="at">popSize =</span> gaSettings<span class="sc">$</span>popSize,</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>  <span class="at">pMutation =</span> gaSettings<span class="sc">$</span>pMutation,</span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a>  <span class="at">pCrossover =</span> gaSettings<span class="sc">$</span>pCrossover,</span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>  <span class="at">crossoverFunc =</span> gaSettings<span class="sc">$</span>crossoverType,</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a>  <span class="at">elitism =</span> gaSettings<span class="sc">$</span>elitism,</span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a>  <span class="at">maxIter =</span> gaSettings<span class="sc">$</span>maxIter,</span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>  <span class="at">interval =</span> gaSettings<span class="sc">$</span>interval,</span>
+<span id="cb4-14"><a href="#cb4-14" tabindex="-1"></a>  <span class="at">seeds =</span> theSeeds,</span>
+<span id="cb4-15"><a href="#cb4-15" tabindex="-1"></a>  <span class="at">verbose =</span> <span class="cn">TRUE</span></span>
+<span id="cb4-16"><a href="#cb4-16" tabindex="-1"></a>)</span>
+<span id="cb4-17"><a href="#cb4-17" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" tabindex="-1"></a>fitOneModelSize <span class="ot">&lt;-</span> <span class="cf">function</span>(numberOfVariables) {</span>
+<span id="cb4-19"><a href="#cb4-19" tabindex="-1"></a>  args <span class="ot">&lt;-</span> baseArgs</span>
+<span id="cb4-20"><a href="#cb4-20" tabindex="-1"></a>  args<span class="sc">$</span>numberOfVariables <span class="ot">&lt;-</span> numberOfVariables</span>
+<span id="cb4-21"><a href="#cb4-21" tabindex="-1"></a>  <span class="fu">do.call</span>(gaQSAR<span class="sc">::</span>gaDoubleCrossValidation, args)</span>
+<span id="cb4-22"><a href="#cb4-22" tabindex="-1"></a>}</span>
+<span id="cb4-23"><a href="#cb4-23" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" tabindex="-1"></a>output <span class="ot">&lt;-</span> <span class="fu">lapply</span>(numVars, fitOneModelSize)</span>
+<span id="cb4-25"><a href="#cb4-25" tabindex="-1"></a><span class="fu">names</span>(output) <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;p&quot;</span>, numVars)</span></code></pre></div>
+<p>Each element of <code>output</code> is a <code>gaQSAR_dcv</code>
+object. The object contains the results for all outer folds for one
+fixed number of predictors.</p>
+</div>
+<div id="optional-parallel-execution" class="section level2">
+<h2>Optional parallel execution</h2>
+<p>The double cross-validation workflow can be slow. In a real analysis,
+the run over <code>numVars</code> can be parallelized.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">library</span>(future)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="fu">library</span>(future.apply)</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>useFuture <span class="ot">&lt;-</span> nWorkers <span class="sc">&gt;</span> <span class="dv">1</span><span class="dt">L</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="cf">if</span> (useFuture) {</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>  oldPlan <span class="ot">&lt;-</span> future<span class="sc">::</span><span class="fu">plan</span>()</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>  <span class="fu">on.exit</span>(future<span class="sc">::</span><span class="fu">plan</span>(oldPlan), <span class="at">add =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>  future<span class="sc">::</span><span class="fu">plan</span>(future<span class="sc">::</span>multisession, <span class="at">workers =</span> nWorkers)</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>  output <span class="ot">&lt;-</span> future.apply<span class="sc">::</span><span class="fu">future_lapply</span>(</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>    <span class="at">X =</span> numVars,</span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>    <span class="at">FUN =</span> fitOneModelSize,</span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>    <span class="at">future.seed =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>    <span class="at">future.packages =</span> <span class="st">&quot;gaQSAR&quot;</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a>    <span class="at">future.chunk.size =</span> <span class="dv">1</span></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>  )</span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>  <span class="fu">names</span>(output) <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="st">&quot;p&quot;</span>, numVars)</span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a>}</span></code></pre></div>
+<p>The parallelization above is over model sizes. Depending on the
+computer and the data size, other choices may be faster or slower. Do
+not use more workers than the machine can handle comfortably.</p>
+</div>
+<div id="compare-model-sizes" class="section level2">
+<h2>Compare model sizes</h2>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>trainingPlot <span class="ot">&lt;-</span> <span class="fu">createDCVTrainingMetricsPlot</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  output,</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="at">metrics =</span> <span class="fu">c</span>(<span class="st">&quot;R2&quot;</span>, <span class="st">&quot;R2adj&quot;</span>, <span class="st">&quot;Q2&quot;</span>),</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="at">includeOuterQ2 =</span> <span class="cn">TRUE</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>)</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="fu">print</span>(trainingPlot)</span></code></pre></div>
+<p>This plot compares the model sizes. The training metrics describe the
+models fitted inside the training folds. The outer Q2 is the more
+important value for prediction, because it is based on compounds that
+were left out in the outer loop.</p>
+</div>
+<div id="select-a-model-size" class="section level2">
+<h2>Select a model size</h2>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>outerQ2Values <span class="ot">&lt;-</span> <span class="fu">vapply</span>(output, <span class="cf">function</span>(object) object<span class="sc">$</span>outerQ2, <span class="fu">numeric</span>(<span class="dv">1</span>))</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>bestIdx <span class="ot">&lt;-</span> <span class="fu">which.max</span>(outerQ2Values)</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>bestObj <span class="ot">&lt;-</span> output[[bestIdx]]</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">sprintf</span>(<span class="st">&quot;Selected model size: %d predictors</span><span class="sc">\n</span><span class="st">&quot;</span>, numVars[bestIdx]))</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">sprintf</span>(<span class="st">&quot;Outer Q2: %.4f</span><span class="sc">\n</span><span class="st">&quot;</span>, bestObj<span class="sc">$</span>outerQ2))</span></code></pre></div>
+<p>This selects the model size with the highest outer Q2. That is a
+reasonable default, but not a law. If two model sizes perform about the
+same, the smaller or more interpretable model is preferable.</p>
+<p>In a manuscript, it is often better to show the full pattern over
+model sizes instead of only reporting the maximum.</p>
+</div>
+<div id="inspect-the-selected-model-size" class="section level2">
+<h2>Inspect the selected model size</h2>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">summary</span>(bestObj)</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">plot</span>(bestObj, <span class="at">type =</span> <span class="st">&quot;all&quot;</span>)</span></code></pre></div>
+<p>The summary gives the main results of the selected double
+cross-validation run. The plot method can show several diagnostics,
+including selected descriptor frequency and object-level
+diagnostics.</p>
+</div>
+<div id="williams-plot-across-outer-folds" class="section level2">
+<h2>Williams plot across outer folds</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>williamsPlot <span class="ot">&lt;-</span> <span class="fu">createDCVWilliamsPlot</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  bestObj,</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">label =</span> <span class="st">&quot;AquaticTox data&quot;</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">colorBy =</span> <span class="st">&quot;fold&quot;</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="at">aggregation =</span> <span class="st">&quot;none&quot;</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>  <span class="at">labelOutliers =</span> <span class="st">&quot;rowName&quot;</span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>)</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="fu">print</span>(williamsPlot <span class="sc">+</span> ggplot2<span class="sc">::</span><span class="fu">facet_wrap</span>(<span class="sc">~</span> fold))</span></code></pre></div>
+<p>The Williams plot combines the fold-specific training diagnostics
+stored in the DCV object. It is useful for checking whether the fitted
+models repeatedly identify high-leverage or high-residual compounds. The
+outer-fold predictive performance is summarized separately by the outer
+Q2 and the stored outer predictions. Faceting by fold is useful when the
+goal is to see whether outlying behaviour is concentrated in one split
+or appears repeatedly.</p>
+<p>As with all Williams plots, high leverage is not automatically a
+mistake. It means that the object is far from the centre of the
+descriptor space used by the model.</p>
+</div>
+<div id="best-fitness-plot" class="section level2">
+<h2>Best fitness plot</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>fitnessPlot <span class="ot">&lt;-</span> <span class="fu">createBestFitnessPlot</span>(bestObj)</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="fu">print</span>(fitnessPlot)</span></code></pre></div>
+<p>This plot is useful for checking whether the genetic algorithm had
+enough iterations to stabilize. If the best fitness is still improving
+near the end, more iterations may be needed.</p>
+</div>
+<div id="permutation-test" class="section level2">
+<h2>Permutation test</h2>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="cf">if</span> (permutationTest) {</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>  nPermutations <span class="ot">&lt;-</span> <span class="cf">if</span> (smokeTest) <span class="dv">20</span> <span class="cf">else</span> <span class="dv">100</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>  permutationResult <span class="ot">&lt;-</span> <span class="fu">gaPermutationTest</span>(</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>    bestObj,</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>    <span class="at">x =</span> xAll,</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>    <span class="at">nPermutations =</span> nPermutations,</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>    <span class="at">seed =</span> <span class="dv">1</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>    <span class="at">validateSettings =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>    <span class="at">verbose =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>    <span class="at">workers =</span> nWorkers</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a>  )</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>  <span class="fu">print</span>(<span class="fu">plot</span>(permutationResult))</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>  <span class="fu">summary</span>(permutationResult)</span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>}</span></code></pre></div>
+<p>The permutation test repeats the analysis after scrambling the
+response. This checks whether the observed performance is clearly better
+than what is obtained after breaking the relation between descriptors
+and response.</p>
+<p>The permutation test can be expensive for double cross-validation.
+Use a small value of <code>nPermutations</code> only for testing the
+code. Use a larger value for a final analysis.</p>
+</div>
+<div id="save-results" class="section level2">
+<h2>Save results</h2>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">save</span>(output, <span class="at">file =</span> <span class="fu">timestampFileName</span>(<span class="fu">paste0</span>(qsarLabel, <span class="st">&quot;NestedCV_Results.Rdata&quot;</span>)))</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">exists</span>(<span class="st">&quot;permutationResult&quot;</span>)) {</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="fu">save</span>(</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>    permutationResult,</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>    <span class="at">file =</span> <span class="fu">timestampFileName</span>(<span class="fu">paste0</span>(qsarLabel, <span class="st">&quot;NestedCV_PermutationResults.Rdata&quot;</span>))</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>  )</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>}</span></code></pre></div>
+</div>
+<div id="summary" class="section level2">
+<h2>Summary</h2>
+<p>The double cross-validation workflow is the safer route when the aim
+is to estimate predictive performance after model selection. It is
+slower than the train/test workflow, but it avoids putting too much
+weight on one single split.</p>
+<p>The result is a list of <code>gaQSAR_dcv</code> objects, one for each
+model size. The model sizes can then be compared by outer Q2, selection
+stability and diagnostic plots.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

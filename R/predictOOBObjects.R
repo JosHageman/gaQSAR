@@ -1,39 +1,64 @@
 #' Predict out-of-bag objects and compute external Q2
 #'
 #' Compute external predictions for test objects using stored coefficient
-#' vectors (per selected model) and derive the external $Q^2$ metric. For each
+#' vectors (per selected model) and derive the external Q2 metric. For each
 #' element in `output`, predictor columns in `x` are matched by name to the
 #' coefficient names (excluding the intercept), an intercept term is prepended,
 #' and predictions are obtained via a matrix product. The resulting external
-#' $Q^2$ and per-object predictions/residuals are attached to each element.
+#' Q2 and per-object predictions/residuals are attached to each element.
 #'
-#' @param output A list-like GA selection result where each element contains a
-#'   numeric coefficient vector `model` for the selected predictors, with the
-#'   intercept in the first position and remaining names matching columns in `x`.
+#' @param output A `gaQSAR` object or a list of `gaQSAR` objects. Each object
+#'   must contain a numeric coefficient vector `model` for the selected
+#'   predictors, with the intercept in the first position and remaining names
+#'   matching columns in `x`.
 #' @param x A data.frame or matrix with predictors in columns and observations in
 #'   rows. Column names must cover the predictor names used in `model` (excluding
 #'   the intercept). Row order must align with `y`.
 #' @param y Numeric vector of observed response values aligned with the rows of `x`.
-#' @param verbose Logical; if `TRUE`, prints the computed external $Q^2$ for each
+#' @param verbose Logical; if `TRUE`, prints the computed external Q2 for each
 #'   model element.
 #'
 #' @details Predictor order does not matter: columns are matched by name to the
 #' coefficient vector (excluding the intercept). An intercept column of ones is
-#' automatically added before prediction. Missing matches in `x` will yield `NA`
-#' indices and may cause subsetting errors.
+#' automatically added before prediction.
 #'
-#' @return The input `output` object, with each element augmented by:
-#'   - `Q2Ext`: numeric external $Q^2$ computed by `Q2(y, yHat)`.
+#' @return Returns an updated `gaQSAR` object (if a single object was supplied)
+#'   or an updated list of `gaQSAR` objects, with each element augmented by:
+#'   - `Q2Ext`: numeric external Q2 computed by `Q2(y, yHat)`.
 #'   - `yExt`: data.frame with columns `y`, `yHat`, and `residual` for test data.
 #'
-#' @seealso [Q2()], [createQ2Plot()], [createWilliamsPlot()]
+#' @seealso [Q2()]
 #'
 #' @export
 predictOOBObjects <- function(output, x, y, verbose=FALSE) {
 
+  singleObject <- inherits(output, "gaQSAR")
+  if (singleObject) {
+    output <- list(output)
+  }
+
+  isGaQsars <- vapply(output, inherits, logical(1), what = "gaQSAR")
+  if (!all(isGaQsars)) {
+    stop("`output` must be a gaQSAR object or a list of gaQSAR objects.", call. = FALSE)
+  }
+
   #find corresponding predicor columns
   for (i in seq_along(output)) {
-    idx <- match(names(output[[i]]$model)[-1], colnames(x))
+    predictorNames <- names(output[[i]]$model)[-1]
+
+    idx <- match(predictorNames, colnames(x))
+
+    if (anyNA(idx)) {
+      missingNames <- predictorNames[is.na(idx)]
+      stop(
+        sprintf(
+          "Missing predictor columns in `x`: %s",
+          paste(missingNames, collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+
     #get predicted values
     yHat <- output[[i]]$model %*% t(cbind(1, x[, idx, drop = FALSE]))
     Q2Ext <- Q2(y, yHat)
@@ -45,5 +70,9 @@ predictOOBObjects <- function(output, x, y, verbose=FALSE) {
   }
 
   #return new object with Q2 and predictions for ext validation set
-  return(output)
+  if (singleObject) {
+    return(output[[1]])
+  }
+
+  output
 }

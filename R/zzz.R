@@ -6,5 +6,9 @@ utils::globalVariables(c(
   "x", "y",
   "residuals", "set", "number",
   "object", "minLev", "maxLev", "minRes", "maxRes",
-  "leverages", "type", "numVar"
+  "leverages", "type", "numVar",
+  "frequency", "objectIndex",
+  "fold", "leverage", "lt", "lw", "metric",
+  "nPredictors", "objectId", "part", "residual", "se",
+  "labelText", "generation", "bestFitness", "run", "dataset"
 ))

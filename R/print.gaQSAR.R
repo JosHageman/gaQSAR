@@ -10,9 +10,10 @@
 #'
 #' @details Prints detailed information including:
 #' - Number of selected predictors and their indices/names
-#' - Training R2 and LOOCV Q2 metrics
+#' - Training R2, adjusted R2, and LOOCV Q2 metrics
 #' - External validation Q2 (if available)
 #' - OLS model coefficients (intercept and slopes)
+#' - Variance Inflation Factors (VIF) for each selected predictor
 #' - Summary statistics for training set residuals
 #' - Summary statistics for external validation residuals (if available)
 #' - Information about attached plots
@@ -20,7 +21,7 @@
 #' @return Invisibly returns the object.
 #'
 #' @seealso [summary.gaQSAR()], [gaVariableSelection()], [plot.gaQSAR()]
-#'
+#' 
 #' @export
 print.gaQSAR <- function(x, ...) {
 
@@ -57,6 +58,9 @@ print.gaQSAR <- function(x, ...) {
     # Performance metrics
     cat("\n--- Training Set Performance ---\n")
     cat(sprintf("R2 (Training): %.4f\n", model$R2Train))
+    if (!is.null(model$R2AdjTrain)) {
+      cat(sprintf("Adjusted R2 (Training): %.4f\n", model$R2AdjTrain))
+    }
     cat(sprintf("Q2 (LOOCV): %.4f\n", model$Q2Loocv))
 
     # External validation metrics if available
@@ -73,6 +77,17 @@ print.gaQSAR <- function(x, ...) {
       row.names = NULL
     )
     print(coef_df, row.names = FALSE)
+
+    # VIF values if available
+    if (!is.null(model$VIF) && length(model$VIF) > 0) {
+      cat("\n--- Variance Inflation Factors (VIF) ---\n")
+      vif_df <- data.frame(
+        Predictor = names(model$VIF),
+        VIF = as.numeric(model$VIF),
+        row.names = NULL
+      )
+      print(vif_df, row.names = FALSE)
+    }
 
     # Training residuals summary
     if (!is.null(model$yTrain)) {
@@ -109,7 +124,7 @@ print.gaQSAR <- function(x, ...) {
         cat(sprintf("  - %s\n", pname))
       }
     } else {
-      cat("  No plots attached. Run createQ2Plot() and/or createWilliamsPlot().\n")
+      cat("  No plots attached. Run createWilliamsPlot().\n")
     }
   }
 

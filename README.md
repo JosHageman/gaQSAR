@@ -2,37 +2,26 @@
 
 ![R-CMD-check](https://github.com/joshageman/gaQSAR/actions/workflows/R-CMD-check.yaml/badge.svg)
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
-![CRAN status](https://www.r-pkg.org/badges/version/gaQSAR)
-![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/gaQSAR)
 
-**Genetic Algorithm-based Variable Selection for QSAR Modeling**
-
-[![License: GPL-3](https://img.shields.io/badge/License-GPL%203-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+**Genetic algorithm-based variable selection for QSAR modelling**
 
 ## Overview
 
-`gaQSAR` implements genetic algorithm-based variable selection for building quantitative structure-activity relationship (QSAR) models. The package provides a comprehensive workflow for selecting optimal predictor subsets from large descriptor spaces using leave-one-out cross-validation (LOOCV) with Q2 as the fitness criterion.
+`gaQSAR` performs variable selection for quantitative structure-activity relationship (QSAR) models using a genetic algorithm. Predictor subsets are evaluated with leave-one-out cross-validation (LOOCV), using Q2 as the fitness criterion.
 
-### Key Features
+`gaQSAR` contains functions for:
 
-- **Genetic Algorithm Optimization**: Select optimal predictor subsets from large descriptor spaces
-- **Automatic Multicollinearity Handling**: VIF thresholding to avoid correlated predictors
-- **Cross-Validation**: LOOCV-based Q2 for robust model selection
-- **External Validation**: Test model performance on independent test sets
-- **Diagnostic Plots**: Q2 curves and Williams plots for model evaluation
-- **Flexible Data Splitting**: Kennard-Stone or random split methods
-
-### Typical Workflow
-
-1. Prepare descriptors + response.
-2. Optionally run a small experimental design to tune GA hyperparameters.
-3. Run the GA for a range of subset sizes (number of predictors).
-4. Validate on an external test set.
-5. Inspect diagnostics: Q2 curves and applicability domain (Williams plot).
+- genetic algorithm-based descriptor selection;
+- LOOCV-based model evaluation during variable selection;
+- external test set prediction;
+- double cross-validation;
+- permutation testing by y-scrambling;
+- Williams plots and Q2 plots;
+- inspection of descriptor selection frequency.
 
 ## Installation
 
-From GitHub (example):
+Install the development version from GitHub:
 
 ```r
 # install.packages("remotes")
@@ -45,9 +34,58 @@ Load the package:
 library(gaQSAR)
 ```
 
-## Quick start
+## Two ways to use gaQSAR
 
-If you already have `x` (descriptor matrix) and `y` (numeric response):
+There are two main workflows.
+
+### 1. Train/test workflow
+
+Use this route when you want to split the data into a training set and a separate test set. The genetic algorithm is run on the training set. The selected models are then evaluated on the test set.
+
+This workflow is useful for a first analysis, for comparing model sizes, or when a fixed external test set is available.
+
+Main functions:
+
+```r
+splitUp()
+gaVariableSelection()
+predictOOBObjects()
+createQ2Plot()
+createWilliamsPlot()
+gaPermutationTest()
+```
+
+A full example is available in:
+
+```text
+vignettes/train-test-workflow.Rmd
+```
+
+### 2. Double cross-validation workflow
+
+Use this route when you want a stricter estimate of predictive performance. The outer cross-validation loop is used for model evaluation. Inside each training fold, the genetic algorithm performs descriptor selection.
+
+This workflow is usually the better choice when the goal is to report model performance, because model selection and model evaluation are more clearly separated.
+
+Main functions:
+
+```r
+gaDoubleCrossValidation()
+createDCVTrainingMetricsPlot()
+createDCVWilliamsPlot()
+createBestFitnessPlot()
+gaPermutationTest()
+```
+
+A full example is available in:
+
+```text
+vignettes/double-cross-validation-workflow.Rmd
+```
+
+## Quick start: one GA run
+
+If you already have a descriptor matrix `x` and a numeric response vector `y`, a single GA run can be started as follows:
 
 ```r
 library(gaQSAR)
@@ -68,250 +106,203 @@ fit <- gaVariableSelection(
 )
 
 fit$Q2Loocv
+fit$importantPredictors
+summary(fit)
 ```
 
-## Full example: Aquatic Toxicity dataset (QSARdata)
+This gives one `gaQSAR` object. In practice, it is often useful to repeat the run for several numbers of predictors and compare the resulting models.
 
-This is a complete, runnable example showing:
+## Example: train/test workflow
 
-- data preparation (AquaticTox)
-- optional experimental design for GA settings
-- final GA run for multiple subset sizes
-- external validation
-- diagnostics (Q2 curve, Williams plot)
-- optional parallel execution with `future`
-
-### Example script
+The train/test workflow starts by splitting the compounds into a training set and a test set. Then `gaVariableSelection()` is run for several model sizes.
 
 ```r
-# load necessary libraries
 library(gaQSAR)
-library(future)
-library(future.apply)
-library(parallel)
-
-timestampFileName <- function(fileName, time = Sys.time()) {
-  paste0(format(time, "%Y%m%d_%H%M%S_"), fileName)
-}
-
-EXPDES <- FALSE
-nWorkers <- 6
-
-# start the clock
-ptm <- proc.time()
-
-################################
-# 1. Prepare the data          #
-################################
-
-# use Aquatic Toxicity data set
 library(QSARdata)
 
 data(AquaticTox)
-QSARLabel <- "AquaticTox"
-myTrainData <- cbind(
+
+qsarData <- cbind(
   activity = AquaticTox_Outcome$Activity,
   AquaticTox_moe2D[, -1],
   AquaticTox_moe3D[, -1]
 )
 
-idx <- which(colSums(is.na(myTrainData)) != 0)
-myTrainData <- myTrainData[, -idx]
+missingColumns <- which(colSums(is.na(qsarData)) != 0)
 
-################################
-# 2. Do experimental design    #
-################################
+if (length(missingColumns) > 0) {
+  qsarData <- qsarData[, -missingColumns]
+}
 
-if (EXPDES) {
+splitupMolecules <- splitUp(qsarData, method = "KS", pc = 0.95)
 
-  # start the clock
-  ptm <- proc.time()
+trainData <- splitupMolecules$trainData
+xtest <- as.matrix(splitupMolecules$testData[, -1, drop = FALSE])
+ytest <- splitupMolecules$testData[, 1]
 
-  # settings for full GA-run
-  numberOfVariables <- 4
-  pMutation         <- c(0.1, 0.2)
-  pCrossover        <- c(0.6, 0.7, 0.8)
-  popSize           <- c(100, 300)
-  elitism           <- c(3, 30)
-  mySeeds           <- 1:3
-  maxIter           <- 300
-  crossoverType     <- c("gaintegerOnePointCrossover", "gaintegerTwoPointCrossover")
-  KSpercentage      <- c(0.75, 0.85, 0.95)
+xtrain <- as.matrix(trainData[, -1, drop = FALSE])
+ytrain <- trainData[, 1]
 
-  experimentalDesign <- expand.grid(
+numVars <- 2:7
+
+fitModels <- lapply(numVars, function(numberOfVariables) {
+  gaVariableSelection(
+    x = xtrain,
+    y = ytrain,
     numberOfVariables = numberOfVariables,
-    pMutation         = pMutation,
-    pCrossover        = pCrossover,
-    popSize           = popSize,
-    elitism           = elitism,
-    theSeed           = mySeeds,
-    maxIter           = maxIter,
-    crossoverType     = crossoverType,
-    KSpercentage      = KSpercentage,
-    stringsAsFactors  = FALSE
+    popSize = 100,
+    pMutation = 0.2,
+    pCrossover = 0.7,
+    crossoverFunc = "gaintegerOnePointCrossover",
+    elitism = 3,
+    maxIter = 300,
+    seeds = 1:5,
+    interval = 50,
+    verbose = TRUE
   )
+})
 
-  cat(sprintf("Number of experiments: %d\n", nrow(experimentalDesign)))
+fitModels <- predictOOBObjects(fitModels, xtest = xtest, ytest = ytest)
 
-  # number of cores
-  plan(multisession, workers = nWorkers)
-  on.exit(plan(sequential), add = TRUE)
+createQ2Plot(fitModels, label = "AquaticTox")
+createWilliamsPlot(fitModels, xtrain, ytrain, xtest, ytest)
+```
 
-  # Run experiments
-  output <- future_lapply(
-    X = seq_len(nrow(experimentalDesign)),
-    FUN = function(i) {
+`fitModels` is a list of `gaQSAR` objects. Each element corresponds to one model size. This is why the plotting functions for this workflow take a list as input.
 
-      expRow <- experimentalDesign[i, , drop = FALSE]
+A final model can be selected from the list, for example by choosing the model with the highest LOOCV Q2:
 
-      # divide in training and test set (KS split)
-      splitupMolecules <- splitUp(myTrainData, method = "KS", pc = expRow$KSpercentage)
+```r
+Q2Values <- vapply(fitModels, function(object) object$Q2Loocv, numeric(1))
+bestIdx <- which.max(Q2Values)
+bestModel <- fitModels[[bestIdx]]
 
-      xtrain <- as.matrix(myTrainData[splitupMolecules$model, -1, drop = FALSE])
-      ytrain <- myTrainData[splitupMolecules$model,  1]
-      xtest  <- as.matrix(myTrainData[splitupMolecules$test,  -1, drop = FALSE])
-      ytest  <- myTrainData[splitupMolecules$test,   1]
+summary(bestModel)
+plot(bestModel)
+```
 
-      L <- list(
-        x = xtrain,
-        y = ytrain,
-        numberOfVariables = expRow$numberOfVariables,
-        popSize           = expRow$popSize,
-        pMutation         = expRow$pMutation,
-        pCrossover        = expRow$pCrossover,
-        crossoverFunc     = expRow$crossoverType,
-        elitism           = expRow$elitism,
-        maxIter           = expRow$maxIter,
-        seeds             = expRow$theSeed,
-        verbose           = FALSE
-      )
+## Example: double cross-validation workflow
 
-      # Run GA
-      fit <- do.call(gaQSAR::gaVariableSelection, L)
+The double cross-validation workflow uses all compounds. The external validation is created inside the outer cross-validation loop.
 
-      return(fit$Q2Loocv)
-    },
-    future.seed = TRUE,
-    future.packages = c("gaQSAR")
-  )
+```r
+library(gaQSAR)
+library(QSARdata)
 
-  resultsExpDes <- cbind(experimentalDesign, Q2Loocv = unlist(output))
+data(AquaticTox)
 
-  cat(sprintf("Combination with highest Q2:\n "))
-  print(resultsExpDes[which.max(unlist(output)), ])
+qsarData <- cbind(
+  activity = AquaticTox_Outcome$Activity,
+  AquaticTox_moe2D[, -1],
+  AquaticTox_moe3D[, -1]
+)
 
-  save(resultsExpDes, file = timestampFileName(paste0(QSARLabel, "ExpDes.Rdata")))
-  elapsed <- (proc.time() - ptm)[["elapsed"]]
-  cat(sprintf("Done. Elapsed time: %.1f sec\n", elapsed))
+missingColumns <- which(colSums(is.na(qsarData)) != 0)
+
+if (length(missingColumns) > 0) {
+  qsarData <- qsarData[, -missingColumns]
 }
 
-################################
-# 3. Do the final run          #
-################################
+xAll <- as.matrix(qsarData[, -1, drop = FALSE])
+yAll <- qsarData[, 1]
 
-# set up the GA
-if (EXPDES) {
-  gaSettings <- resultsExpDes[which.max(resultsExpDes$Q2Loocv), ]
-  gaSettings$interval <- 50
-} else {
-  # fixed settings = best settings from ExpDes
-  gaSettings <- list(
-    pMutation = 0.2, pCrossover = 0.7, popSize = 100, maxIter = 300,
-    interval = 50, elitism = 3, crossoverType = "gaintegerOnePointCrossover",
-    KSpercentage = 0.95)
-  }
+numVars <- 1:10
 
-# divide in training and test set
-splitupMolecules <- splitUp(myTrainData, method = "KS", pc = gaSettings$KSpercentage)
-xtrain <- as.matrix(myTrainData[splitupMolecules$model, -1])
-ytrain <- myTrainData[splitupMolecules$model, 1]
-xtest  <- as.matrix(myTrainData[splitupMolecules$test,  -1])
-ytest  <- myTrainData[splitupMolecules$test,   1]
+dcvModels <- lapply(numVars, function(numberOfVariables) {
+  gaDoubleCrossValidation(
+    x = xAll,
+    y = yAll,
+    outerMethod = "kfold",
+    outerK = 5,
+    seed = 1,
+    numberOfVariables = numberOfVariables,
+    popSize = 100,
+    pMutation = 0.2,
+    pCrossover = 0.7,
+    crossoverFunc = "gaintegerOnePointCrossover",
+    elitism = 3,
+    maxIter = 300,
+    seeds = 1:5,
+    interval = 50,
+    verbose = TRUE
+  )
+})
 
-numVars  <- 2:9
-theSeeds <- 1:5
+createDCVTrainingMetricsPlot(dcvModels, label = "AquaticTox")
+```
 
-useFuture <- nWorkers > 1L
+The result is a list of `gaQSAR_dcv` objects. Each element corresponds to one number of predictors.
 
-# Defaults: sequential behavior
-applyFun <- sapply
-applyArgs <- list(simplify = FALSE)
-resetPlan <- NULL
+A model size can be selected using the outer cross-validated Q2:
 
-# Tip: when prototyping, set nWorkers <- 1 so you do not start multisession.
-# This keeps console output responsive while the GA is running.
-if (useFuture) {
-  oldPlan <- plan()
-  plan(multisession, workers = nWorkers)
-  resetPlan <- function() plan(oldPlan)
-  on.exit(resetPlan(), add = TRUE)
+```r
+outerQ2Values <- vapply(dcvModels, function(object) object$outerQ2, numeric(1))
+bestIdx <- which.max(outerQ2Values)
+bestDcvModel <- dcvModels[[bestIdx]]
 
-  applyFun <- future_sapply
-  applyArgs <- c(applyArgs, list(future.seed = TRUE, future.packages = "gaQSAR"))
-}
+summary(bestDcvModel)
+plot(bestDcvModel, type = "all")
 
-baseArgs <- list(
+createDCVWilliamsPlot(
+  bestDcvModel,
+  label = "AquaticTox",
+  colorBy = "fold",
+  aggregation = "none",
+  labelOutliers = "rowName"
+)
+```
+
+## Permutation testing
+
+`gaPermutationTest()` can be used to compare the observed model performance with the performance obtained after randomly permuting the response variable.
+
+For a selected train/test model:
+
+```r
+permutationResult <- gaPermutationTest(
+  object = bestModel,
   x = xtrain,
-  y = ytrain,
-  popSize = gaSettings$popSize,
-  pMutation = gaSettings$pMutation,
-  pCrossover = gaSettings$pCrossover,
-  crossoverFunc = gaSettings$crossoverType,
-  elitism = gaSettings$elitism,
-  maxIter = gaSettings$maxIter,
-  interval = gaSettings$interval,
-  seeds = theSeeds,
+  nPermutations = 100,
+  seed = 1,
+  validateSettings = TRUE,
   verbose = TRUE
 )
 
-fun <- function(numberOfVariables) {
-  args <- baseArgs
-  args$numberOfVariables <- numberOfVariables
-  do.call(gaQSAR::gaVariableSelection, args)
-}
-
-output <- do.call(applyFun, c(list(X = numVars, FUN = fun), applyArgs))
-
-# add predictions for validation sets
-output <- predictOOBObjects(output, xtest, ytest)
-
-# add Q2 curves for LOOCV and validation sets
-output <- createQ2Plot(output, label = QSARLabel)
-
-# add Williams plots for applicability domain
-output <- createWilliamsPlot(output, xtrain, ytrain, xtest, ytest, residualThreshold = 2.5)
-
-# save all the results
-save(output, file = timestampFileName(paste0(QSARLabel, "Results.Rdata")))
-
-print(output[[1]]$q2Plot)
-plot(output[[2]])
-summary(output[[2]])
-
-# what's our runtime?
-cat(sprintf("Done in %.1f mins.\n", (proc.time() - ptm)[3] / 60))
+summary(permutationResult)
+plot(permutationResult)
 ```
 
-## What you get back
+For a selected double cross-validation result:
 
-After the final run, `output` is a list of GA results objects (one per `numberOfVariables` in `numVars`), enriched with:
+```r
+permutationResult <- gaPermutationTest(
+  object = bestDcvModel,
+  x = xAll,
+  nPermutations = 100,
+  seed = 1,
+  validateSettings = TRUE,
+  verbose = TRUE
+)
 
-- external test-set predictions (`predictOOBObjects`)
-- a Q2 curve plot (`createQ2Plot`)
-- applicability domain diagnostics (Williams plot via `createWilliamsPlot`)
+summary(permutationResult)
+plot(permutationResult)
+```
 
-## Parallel execution notes
+Permutation testing can be computationally expensive. For checking code, use a small value of `nPermutations`. For a real analysis, use a larger number.
 
-- Set `nWorkers <- 1` during prototyping for more responsive console output.
-- Set `nWorkers` to a higher value for batch runs. In that case, the code uses `future_sapply()` and a `multisession` plan.
+## Notes on computation
+
+Genetic algorithm runs can take time, especially when many model sizes, seeds or permutations are used. For quick checks, use smaller values for `popSize`, `maxIter`, `seeds` and `nPermutations`.
+
+For parallel execution, use the `future` and `future.apply` packages in the analysis script. The vignettes contain examples of this.
 
 ## References
 
-This method is demonstrated in:
+This approach is related to the QSAR analyses described in:
 
-- Araya-Cloutier, C., Vincken, JP., van de Schans, M.G.M. et al. QSAR-based molecular signatures of prenylated (iso)flavonoids underlying antimicrobial potency against and membrane-disruption in Gram positive and Gram negative bacteria. Sci Rep 8, 9267 (2018). [doi:10.1038/s41598-018-27545-4](https://doi.org/10.1038/s41598-018-27545-4)
+- Araya-Cloutier, C., Vincken, J.P., van de Schans, M.G.M. et al. QSAR-based molecular signatures of prenylated (iso)flavonoids underlying antimicrobial potency against and membrane-disruption in Gram positive and Gram negative bacteria. *Scientific Reports* 8, 9267 (2018). [doi:10.1038/s41598-018-27545-4](https://doi.org/10.1038/s41598-018-27545-4)
 
-- Kalli, S., Araya-Cloutier, C., Hageman, J. et al. Insights into the molecular properties underlying antibacterial activity of prenylated (iso)flavonoids against MRSA. Sci Rep 11, 14180 (2021). [doi:10.1038/s41598-021-92964-9](https://doi.org/10.1038/s41598-021-92964-9)
+- Kalli, S., Araya-Cloutier, C., Hageman, J. et al. Insights into the molecular properties underlying antibacterial activity of prenylated (iso)flavonoids against MRSA. *Scientific Reports* 11, 14180 (2021). [doi:10.1038/s41598-021-92964-9](https://doi.org/10.1038/s41598-021-92964-9)
 
 ## License
 
@@ -319,5 +310,5 @@ GPL-3
 
 ## Author
 
-Jos Hageman (jos.hageman@wur.nl)  
+Jos Hageman  
 Wageningen University & Research

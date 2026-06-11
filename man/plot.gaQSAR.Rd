@@ -4,25 +4,29 @@
 \alias{plot.gaQSAR}
 \title{Plot method for gaQSAR objects}
 \usage{
-\method{plot}{gaQSAR}(x, ...)
+\method{plot}{gaQSAR}(x, type = "all", ...)
 }
 \arguments{
 \item{x}{An object of class "gaQSAR" (returned from \code{gaVariableSelection()}).}
 
+\item{type}{Character scalar specifying which plot to create or print.
+Supported values are \code{"all"} (default), \code{"fitness"}, \code{"predObs"} and \code{"williams"}.}
+
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
-Invisibly returns a list of plot objects, or \code{NULL} if no plots are found.
+Invisibly returns the created or printed \code{ggplot2} object for a
+single plot type, or a named list of plot objects for \code{type = "all"}.
 }
 \description{
-Plot all ggplot objects contained in a gaQSAR result. This includes the Q2
-plot (if created) and Williams plots (if created) for each model size.
+Plot diagnostics for a \code{gaQSAR} result.
 }
 \details{
-Extracts all ggplot2 objects from the result list and prints them
-sequentially. The function searches for objects ending in "Plot" (e.g.,
-\code{q2Plot}, \code{williamsPlot}). Each plot is displayed separately.
+\code{type = "all"} prints available plots separately, one after another.
+The fitness plot is always created with \code{\link[=createBestFitnessPlot]{createBestFitnessPlot()}}. The
+observed-versus-predicted plot is created from \code{x$yTrain} and, when available,
+\code{x$yExt}. The Williams plot use stored plot objects created by \code{\link[=createWilliamsPlot]{createWilliamsPlot()}}.
 }
 \seealso{
-\code{\link[=gaVariableSelection]{gaVariableSelection()}}, \code{\link[=createQ2Plot]{createQ2Plot()}}, \code{\link[=createWilliamsPlot]{createWilliamsPlot()}}
+\code{\link[=gaVariableSelection]{gaVariableSelection()}}, \code{\link[=createWilliamsPlot]{createWilliamsPlot()}}
 }

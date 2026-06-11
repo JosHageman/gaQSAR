@@ -7,9 +7,10 @@
 predictOOBObjects(output, x, y, verbose = FALSE)
 }
 \arguments{
-\item{output}{A list-like GA selection result where each element contains a
-numeric coefficient vector \code{model} for the selected predictors, with the
-intercept in the first position and remaining names matching columns in \code{x}.}
+\item{output}{A \code{gaQSAR} object or a list of \code{gaQSAR} objects. Each object
+must contain a numeric coefficient vector \code{model} for the selected
+predictors, with the intercept in the first position and remaining names
+matching columns in \code{x}.}
 
 \item{x}{A data.frame or matrix with predictors in columns and observations in
 rows. Column names must cover the predictor names used in \code{model} (excluding
@@ -17,30 +18,30 @@ the intercept). Row order must align with \code{y}.}
 
 \item{y}{Numeric vector of observed response values aligned with the rows of \code{x}.}
 
-\item{verbose}{Logical; if \code{TRUE}, prints the computed external $Q^2$ for each
+\item{verbose}{Logical; if \code{TRUE}, prints the computed external Q2 for each
 model element.}
 }
 \value{
-The input \code{output} object, with each element augmented by:
+Returns an updated \code{gaQSAR} object (if a single object was supplied)
+or an updated list of \code{gaQSAR} objects, with each element augmented by:
 \itemize{
-\item \code{Q2Ext}: numeric external $Q^2$ computed by \code{Q2(y, yHat)}.
+\item \code{Q2Ext}: numeric external Q2 computed by \code{Q2(y, yHat)}.
 \item \code{yExt}: data.frame with columns \code{y}, \code{yHat}, and \code{residual} for test data.
 }
 }
 \description{
 Compute external predictions for test objects using stored coefficient
-vectors (per selected model) and derive the external $Q^2$ metric. For each
+vectors (per selected model) and derive the external Q2 metric. For each
 element in \code{output}, predictor columns in \code{x} are matched by name to the
 coefficient names (excluding the intercept), an intercept term is prepended,
 and predictions are obtained via a matrix product. The resulting external
-$Q^2$ and per-object predictions/residuals are attached to each element.
+Q2 and per-object predictions/residuals are attached to each element.
 }
 \details{
 Predictor order does not matter: columns are matched by name to the
 coefficient vector (excluding the intercept). An intercept column of ones is
-automatically added before prediction. Missing matches in \code{x} will yield \code{NA}
-indices and may cause subsetting errors.
+automatically added before prediction.
 }
 \seealso{
-\code{\link[=Q2]{Q2()}}, \code{\link[=createQ2Plot]{createQ2Plot()}}, \code{\link[=createWilliamsPlot]{createWilliamsPlot()}}
+\code{\link[=Q2]{Q2()}}
 }

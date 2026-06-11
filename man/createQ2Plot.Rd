@@ -7,20 +7,18 @@
 createQ2Plot(output, label = "")
 }
 \arguments{
-\item{output}{A list-like object where each element corresponds to a model
-of a given size and contains named numeric entries \code{numVar}, \code{Q2Loocv},
-and optionally \code{Q2Ext}. Typical inputs are elements from GA variable
-selection runs. If \code{Q2Ext} is absent, only the training curve is drawn.}
+\item{output}{A \code{gaQSAR} object or a list of \code{gaQSAR} objects. Each object
+must contain named numeric entries \code{numVar}, \code{Q2Loocv}, and optionally
+\code{Q2Ext}. If \code{Q2Ext} is absent, only the training curve is drawn.}
 
 \item{label}{Character string used as the plot title (set to \code{""} for no title).}
 }
 \value{
-Invisibly returns the created \code{ggplot2} object for further styling
-or saving.
+Returns a Q2 versus number of predictors plot.
 }
 \description{
 Create a diagnostic plot of cross-validated performance against model size.
-The figure shows $Q^2$ for the training set (LOOCV) and, when available,
+The figure shows Q2 for the training set (LOOCV) and, when available,
 the external validation set as a function of the number of selected
 predictors. Use this for visual inspection of GA-based variable selection
 results and to compare model parsimony versus predictive ability.

@@ -7,7 +7,6 @@
 gaVariableSelection(
   x,
   y,
-  evalFunc = "singleCV",
   numberOfVariables = 4,
   pMutation = 0.2,
   pCrossover = 0.7,
@@ -25,9 +24,6 @@ gaVariableSelection(
 columns = candidate variables).}
 
 \item{y}{Numeric response vector aligned with rows of \code{x}.}
-
-\item{evalFunc}{Character or function; fitness function used by the GA.
-The default is "singleCV", which computes LOOCV-based $Q^2$.}
 
 \item{numberOfVariables}{Integer; number of predictors to select.}
 
@@ -52,18 +48,67 @@ The default is "singleCV", which computes LOOCV-based $Q^2$.}
 \value{
 An object of class "gaQSAR" containing the best GA run for the
 specified model size. The structure typically includes: \code{numVar},
-\code{importantPredictors}, \code{yTrain}, \code{model}, \code{R2Train}, and \code{Q2Loocv}.
-Use \code{plot.gaQSAR()} to visualize any attached plots.
+\code{importantPredictors}, \code{yTrain}, \code{model}, \code{R2Train}, \code{R2AdjTrain}, \code{Q2Loocv}
+(LOOCV-based Q2 used by GA for fitness), \code{VIF} (variance inflation factors for
+each selected predictor), \code{bestFitnessPerGeneration} (best GA fitness value at
+each generation), \code{bestSeed} (the seed that produced the optimal solution), and
+\code{gaSettings} (list of GA parameters used, for reproducibility in permutation
+tests). Use \code{plot.gaQSAR()} to visualize any attached plots.
 }
 \description{
-Runs a genetic algorithm (GA) to select a fixed number of predictors.
-For the requested model size, the GA is executed for each seed in \code{seeds},
-and the best run (highest Q2) is returned.
+Runs a genetic algorithm (GA) to select a fixed number of predictors using
+leave-one-out cross-validation (LOOCV) for stable optimization.
+The GA is executed for each seed in \code{seeds} for robustness, and the best run
+(highest LOOCV Q2) is returned.
 }
 \details{
-For each seed, the GA is run with the given parameters and the
-resulting Q2 values are collected. The run with the highest Q2 is selected
-and returned.
+\strong{Fitness function:} Uses LOOCV-based Q2 (via \code{singleCV}) as the GA fitness metric.
+LOOCV provides a deterministic, non-random evaluation landscape that enables stable
+variable selection, preventing fold-splitting variability from interfering with
+optimization. The nested CV structure (outer: validation, inner: LOOCV fitness)
+separates variable selection from performance assessment.
+
+\strong{Robustness:} For each seed, the GA runs with identical parameters. The run with
+the highest LOOCV Q2 is selected and returned. The best seed is tracked for
+reproducibility in permutation tests.
+}
+\examples{
+# This is a toy example for the documentation: GA settings are set so it runs fast.
+# For real QSAR work: start with the  default GA settings, or run an experimental design
+# to tune GA settings for your dataset.
+
+set.seed(1)
+
+# Create toy descriptor matrix (n compounds x p predictors)
+n <- 40
+p <- 20
+x <- matrix(rnorm(n * p), nrow = n)
+
+# Add names to mimic typical QSAR data structures (molecules + descriptor names)
+rownames(x) <- paste0("mol_", seq_len(n))
+colnames(x) <- paste0("X", seq_len(p))
+
+# Create a synthetic response with a known signal in predictors 2 and 7
+y <- 1.5 * x[, 2] - 0.8 * x[, 7] + rnorm(n, sd = 0.5)
+
+# Run GA variable selection
+# NOTE: Settings below are example-only (fast runtime, not optimal).
+fit <- gaVariableSelection(
+  x = x,
+  y = y,
+  numberOfVariables = 2,       # target model size (number of selected predictors)
+  popSize = 20,                # small population for speed (increase in real runs)
+  maxIter = 20,                # few generations for speed (increase in real runs)
+  seeds = 1,                   # single seed for a minimal example (use multiple seeds)
+  interval = 5,                # print progress every 5 generations when verbose=TRUE
+  verbose = FALSE
+)
+
+# Methods for gaQSAR objects
+print(fit)
+summary(fit)
+plot(fit, type = "predObs")  # observed vs predicted plot
+
 }
 \seealso{
 \code{\link[=singleCV]{singleCV()}}, \code{\link[=createQ2Plot]{createQ2Plot()}}, \code{\link[=createWilliamsPlot]{createWilliamsPlot()}}

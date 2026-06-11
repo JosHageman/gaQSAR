@@ -10,9 +10,10 @@
 #' @details Prints a summary including:
 #' - Number of selected predictors
 #' - Selected predictor indices and names (if available)
-#' - Training R2 and LOOCV Q2
+#' - Training R2, adjusted R2, and LOOCV Q2
 #' - External validation Q2 (if available)
 #' - Model coefficients
+#' - Variance Inflation Factors (VIF) for each selected predictor
 #' - Residual statistics for training and validation sets
 #'
 #' @return An object of class "summary.gaQSAR" (invisibly).
@@ -44,18 +45,22 @@ summary.gaQSAR <- function(object, ...) {
     numVar <- safe_get(model, "numVar")
     impPred <- safe_get(model, "importantPredictors", numeric(0))
     R2Train <- safe_get(model, "R2Train")
+    R2AdjTrain <- safe_get(model, "R2AdjTrain")
     Q2Loocv <- safe_get(model, "Q2Loocv")
     Q2Ext <- safe_get(model, "Q2Ext")
     coefs <- safe_get(model, "model", numeric(0))
+    vif_vals <- safe_get(model, "VIF", numeric(0))
     pred_names <- if (length(coefs)) names(coefs)[-1] else character(0)
 
     summary_info <- list(
       numVar = numVar,
       importantPredictors = impPred,
       R2Train = R2Train,
+      R2AdjTrain = R2AdjTrain,
       Q2Loocv = Q2Loocv,
       Q2Ext = Q2Ext,
       coefficients = coefs,
+      VIF = vif_vals,
       pred_names = pred_names
     )
 
@@ -89,6 +94,7 @@ summary.gaQSAR <- function(object, ...) {
 #'
 #' @keywords internal
 #' @noRd
+#' @export
 print.summary.gaQSAR <- function(x, ...) {
 
   cat("\n")
@@ -113,6 +119,9 @@ print.summary.gaQSAR <- function(x, ...) {
     # Performance metrics
     cat("\nPerformance Metrics:\n")
     cat(sprintf("  R2 (Training): %.4f\n", model_summary$R2Train))
+    if (!is.null(model_summary$R2AdjTrain)) {
+      cat(sprintf("  Adjusted R2 (Training): %.4f\n", model_summary$R2AdjTrain))
+    }
     cat(sprintf("  Q2 (LOOCV):    %.4f\n", model_summary$Q2Loocv))
 
     if (!is.null(model_summary$Q2Ext)) {
@@ -124,6 +133,15 @@ print.summary.gaQSAR <- function(x, ...) {
     coef_names <- names(model_summary$coefficients)
     for (j in seq_along(model_summary$coefficients)) {
       cat(sprintf("  %s: %.6f\n", coef_names[j], model_summary$coefficients[j]))
+    }
+
+    # VIF values if available
+    if (!is.null(model_summary$VIF) && length(model_summary$VIF) > 0) {
+      cat("\nVariance Inflation Factors (VIF):\n")
+      vif_names <- names(model_summary$VIF)
+      for (j in seq_along(model_summary$VIF)) {
+        cat(sprintf("  %s: %.4f\n", vif_names[j], model_summary$VIF[j]))
+      }
     }
 
     # Residual statistics

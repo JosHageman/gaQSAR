@@ -1,0 +1,269 @@
+---
+title: "Train/test QSAR workflow with gaQSAR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Train/test QSAR workflow with gaQSAR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This vignette shows the train/test workflow used in `gaQSAR`. The workflow is useful when a separate test set is available, or when the user wants a quick first analysis before moving to double cross-validation.
+
+The main idea is simple. First split the compounds into a training set and a test set. Then run the genetic algorithm for several model sizes. Each run gives one `gaQSAR` object. These objects are collected in a list, so that the models can be compared by their cross-validated Q2 and their performance on the external test set.
+
+This is the workflow:
+
+1. prepare the QSAR data;
+2. split the data into training and test compounds;
+3. run `gaVariableSelection()` for several numbers of predictors;
+4. predict the test compounds with `predictOOBObjects()`;
+5. compare the models with `createQ2Plot()`;
+6. inspect the applicability domain with `createWilliamsPlot()`;
+7. select a final model and, if needed, run a permutation test.
+
+The examples below use the `AquaticTox` data from the `QSARdata` package. For a short test run, set `smokeTest <- TRUE`.
+
+## Load packages and helper function
+
+```{r setup}
+library(gaQSAR)
+library(QSARdata)
+
+timestampFileName <- function(fileName, time = Sys.time()) {
+  paste0(format(time, "%Y%m%d_%H%M%S_"), fileName)
+}
+```
+
+The timestamp helper is not needed by `gaQSAR` itself. It is only used here to save result files without overwriting earlier runs.
+
+## Prepare the data
+
+```{r prepare-data}
+data(AquaticTox)
+
+qsarLabel <- "AquaticTox"
+
+qsarData <- cbind(
+  activity = AquaticTox_Outcome$Activity,
+  AquaticTox_moe2D[, -1],
+  AquaticTox_moe3D[, -1]
+)
+
+missingColumns <- which(colSums(is.na(qsarData)) != 0)
+
+if (length(missingColumns) > 0) {
+  qsarData <- qsarData[, -missingColumns]
+}
+```
+
+The first column is the response variable. The remaining columns are molecular descriptors. In this example, descriptors with missing values are removed before modelling. For other data sets, a different preprocessing step may be more appropriate.
+
+## Choose settings
+
+```{r settings}
+smokeTest <- FALSE
+permutationTest <- TRUE
+nWorkers <- 1L
+
+numVars <- 2:7
+theSeeds <- 1:5
+
+gaSettings <- list(
+  pMutation = 0.2,
+  pCrossover = 0.7,
+  popSize = 100,
+  maxIter = 300,
+  interval = 50,
+  elitism = 3,
+  crossoverType = "gaintegerOnePointCrossover",
+  KSpercentage = 0.95
+)
+
+if (smokeTest) {
+  gaSettings$popSize <- 25
+  gaSettings$maxIter <- 10
+  gaSettings$elitism <- 2
+  gaSettings$interval <- 5
+  numVars <- c(3, 5, 7)
+  theSeeds <- 1:2
+}
+```
+
+The vector `numVars` defines the model sizes to compare. For example, `numVars <- 2:7` fits models with 2, 3, 4, 5, 6 and 7 descriptors.
+
+The `seeds` argument is used because the genetic algorithm is stochastic. Running several seeds gives a more stable result than relying on a single GA run.
+
+## Split the data
+
+```{r split-data}
+splitupMolecules <- splitUp(qsarData, method = "KS", pc = gaSettings$KSpercentage)
+
+xTrain <- as.matrix(qsarData[splitupMolecules$model, -1, drop = FALSE])
+yTrain <- qsarData[splitupMolecules$model, 1]
+
+xTest <- as.matrix(qsarData[splitupMolecules$test, -1, drop = FALSE])
+yTest <- qsarData[splitupMolecules$test, 1]
+```
+
+The Kennard-Stone split is used here to select a training set that covers the descriptor space. With `KSpercentage = 0.95`, the external test set is small. That can be useful for a first analysis on small data sets, but it should not be oversold as a strong external validation.
+
+## Run the GA for several model sizes
+
+```{r run-ga}
+baseArgs <- list(
+  x = xTrain,
+  y = yTrain,
+  popSize = gaSettings$popSize,
+  pMutation = gaSettings$pMutation,
+  pCrossover = gaSettings$pCrossover,
+  crossoverFunc = gaSettings$crossoverType,
+  elitism = gaSettings$elitism,
+  maxIter = gaSettings$maxIter,
+  interval = gaSettings$interval,
+  seeds = theSeeds,
+  verbose = TRUE
+)
+
+fitOneModelSize <- function(numberOfVariables) {
+  args <- baseArgs
+  args$numberOfVariables <- numberOfVariables
+  do.call(gaQSAR::gaVariableSelection, args)
+}
+
+output <- lapply(numVars, fitOneModelSize)
+names(output) <- paste0("p", numVars)
+```
+
+Each element of `output` is a `gaQSAR` object. The list structure is important, because the plotting and comparison functions work on a set of candidate models.
+
+## Optional parallel execution
+
+The same loop can be run in parallel with `future.apply`. This is useful for real analyses, but it is not shown as the default in this vignette because parallel code is less convenient for package checks and examples.
+
+```{r parallel-run}
+library(future)
+library(future.apply)
+
+useFuture <- nWorkers > 1L
+
+if (useFuture) {
+  oldPlan <- future::plan()
+  on.exit(future::plan(oldPlan), add = TRUE)
+  future::plan(future::multisession, workers = nWorkers)
+
+  output <- future.apply::future_lapply(
+    X = numVars,
+    FUN = fitOneModelSize,
+    future.seed = TRUE,
+    future.packages = "gaQSAR"
+  )
+  names(output) <- paste0("p", numVars)
+}
+```
+
+## Predict the test set
+
+```{r predict-test}
+output <- predictOOBObjects(output, xTest, yTest)
+```
+
+This adds external predictions and external validation statistics to each fitted model. The test set was not used during variable selection.
+
+## Compare Q2 values
+
+```{r Q2-plot}
+myQ2Plot <- createQ2Plot(output, label = qsarLabel)
+print(myQ2Plot)
+
+```
+
+The Q2 plot is used to compare model sizes. The training-set Q2 is based on LOOCV. If test set predictions were added, the external Q2 is shown as well.
+
+For small data sets, small differences in Q2 should not be treated as decisive. A smaller model with similar Q2 may be easier to interpret and less fragile.
+
+## Williams plot, fitness plot and Observed versus Predicted plot
+
+```{r diverse-plot}
+output <- createWilliamsPlot(
+  output,
+  xTrain,
+  yTrain,
+  xTest,
+  yTest,
+  residualThreshold = 2.5
+)
+
+print(plot(output[[2]]))
+```
+
+The Williams plot combines standardized residuals and leverages. It is mainly used to inspect the applicability domain and to find objects that behave differently from the rest of the data.
+
+Objects with high leverage are not automatically wrong. They may be important compounds near the edge of the descriptor space. The plot should therefore be used as a diagnostic, not as a mechanical deletion rule.
+
+## Select one model
+
+```{r select-model}
+Q2Values <- vapply(output, function(object) object$Q2Loocv, numeric(1))
+bestIdx <- which.max(Q2Values)
+bestObj <- output[[bestIdx]]
+
+cat(sprintf("Selected model size: %d predictors\n", numVars[bestIdx]))
+cat(sprintf("LOOCV Q2: %.4f\n", bestObj$Q2Loocv))
+
+summary(bestObj)
+```
+
+This selects the model with the highest LOOCV Q2. That is a practical rule, but not the only possible rule. When several model sizes perform similarly, the smaller model is often a reasonable choice.
+
+## Permutation test
+
+```{r permutation-test}
+if (permutationTest) {
+  nPermutations <- if (smokeTest) 20 else 100
+
+  permutationResult <- gaPermutationTest(
+    bestObj,
+    x = xTrain,
+    y = yTrain,
+    nPermutations = nPermutations,
+    seed = 1,
+    validateSettings = TRUE,
+    verbose = TRUE,
+    workers = nWorkers
+  )
+
+  print(plot(permutationResult))
+  summary(permutationResult)
+}
+```
+
+The permutation test scrambles the response and repeats the modelling procedure under the null situation where the descriptor matrix and the response have no real relation.
+
+In this workflow, the permutation test is applied to the selected model size. It does not fully repeat the whole earlier choice over all values of `numVars`. That distinction matters if the permutation result is used as formal evidence.
+
+## Save results
+
+```{r save-results}
+save(output, file = timestampFileName(paste0(qsarLabel, "Results.Rdata")))
+
+if (exists("permutationResult")) {
+  save(
+    permutationResult,
+    file = timestampFileName(paste0(qsarLabel, "PermutationResults.Rdata"))
+  )
+}
+```
+
+## Summary
+
+The train/test workflow is useful for a direct QSAR analysis with an external test set. The result is a list of fitted `gaQSAR` objects, one for each model size. This list is then used for prediction, Q2 plotting and Williams plots.
+
+For a less biased estimate of predictive performance, especially when model size is also chosen from the data, use the double cross-validation workflow shown in the second vignette.

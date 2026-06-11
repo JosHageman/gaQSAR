@@ -18,11 +18,11 @@ columns = candidate variables).}
 \item{vifThreshold}{Numeric; maximum allowed VIF (default 5).}
 }
 \value{
-A numeric scalar: $Q^2$ if valid; 0 if the VIF constraint fails; or
+A numeric scalar: Q2 if valid; 0 if the VIF constraint fails; or
 -100 if duplicate predictors are present.
 }
 \description{
-Compute a leave-one-out cross-validated $Q^2$ for a candidate set of
+Compute a leave-one-out cross-validated Q2 for a candidate set of
 predictors. Designed for use as a fitness function inside a genetic
 algorithm. Duplicate predictors are penalized with a large negative value,
 and candidate sets with variance inflation factor (VIF) above a threshold are

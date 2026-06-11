@@ -1,0 +1,276 @@
+---
+title: "Double cross-validation workflow with gaQSAR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Double cross-validation workflow with gaQSAR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE
+)
+```
+
+This vignette shows the double cross-validation workflow in `gaQSAR`. This workflow is more strict than a single train/test split. It separates model selection from model evaluation by using an outer cross-validation loop.
+
+The outer loop leaves out part of the data for testing. Inside each training fold, `gaVariableSelection()` is used to select descriptors. The left-out outer fold is then predicted. Repeating this over all outer folds gives an external cross-validated estimate of predictive performance.
+
+This is the workflow:
+
+1. prepare the QSAR data;
+2. run `gaDoubleCrossValidation()` for several numbers of predictors;
+3. compare model sizes using training metrics and outer Q2;
+4. inspect selected descriptors and their stability;
+5. inspect the Williams plot across outer folds;
+6. select a model size;
+7. optionally run a permutation test.
+
+The code below is based on the AquaticTox example analysis. Set `smokeTest <- TRUE` for a short run.
+
+## Load packages and helper function
+
+```{r setup}
+library(gaQSAR)
+library(QSARdata)
+
+timestampFileName <- function(fileName, time = Sys.time()) {
+  paste0(format(time, "%Y%m%d_%H%M%S_"), fileName)
+}
+```
+
+## Prepare the data
+
+```{r prepare-data}
+data(AquaticTox)
+
+qsarLabel <- "AquaticTox"
+
+qsarData <- cbind(
+  activity = AquaticTox_Outcome$Activity,
+  AquaticTox_moe2D[, -1],
+  AquaticTox_moe3D[, -1]
+)
+
+missingColumns <- which(colSums(is.na(qsarData)) != 0)
+
+if (length(missingColumns) > 0) {
+  qsarData <- qsarData[, -missingColumns]
+}
+
+xAll <- as.matrix(qsarData[, -1, drop = FALSE])
+yAll <- qsarData[, 1]
+```
+
+All compounds are used in the double cross-validation. The external validation is created inside the outer cross-validation loop.
+
+## Choose settings
+
+```{r settings}
+smokeTest <- FALSE
+permutationTest <- TRUE
+nWorkers <- 1L
+
+numVars <- 1:10
+theSeeds <- 1:5
+
+gaSettings <- list(
+  pMutation = 0.2,
+  pCrossover = 0.7,
+  popSize = 300,
+  maxIter = 300,
+  interval = 50,
+  elitism = 30,
+  crossoverType = "gaintegerOnePointCrossover"
+)
+
+outerK <- 5
+outerSeed <- 1
+
+if (smokeTest) {
+  gaSettings$popSize <- 25
+  gaSettings$maxIter <- 10
+  gaSettings$elitism <- 2
+  gaSettings$interval <- 5
+  numVars <- c(3, 5, 7)
+  theSeeds <- 1:2
+  outerK <- 3
+}
+```
+
+The vector `numVars` defines the model sizes to compare. For each model size, a full double cross-validation is run.
+
+The `outerSeed` fixes the outer fold split. The `theSeeds` vector controls repeated GA runs within the training part of each outer fold.
+
+## Run double cross-validation
+
+```{r run-dcv}
+baseArgs <- list(
+  x = xAll,
+  y = yAll,
+  outerMethod = "kfold",
+  outerK = outerK,
+  seed = outerSeed,
+  popSize = gaSettings$popSize,
+  pMutation = gaSettings$pMutation,
+  pCrossover = gaSettings$pCrossover,
+  crossoverFunc = gaSettings$crossoverType,
+  elitism = gaSettings$elitism,
+  maxIter = gaSettings$maxIter,
+  interval = gaSettings$interval,
+  seeds = theSeeds,
+  verbose = TRUE
+)
+
+fitOneModelSize <- function(numberOfVariables) {
+  args <- baseArgs
+  args$numberOfVariables <- numberOfVariables
+  do.call(gaQSAR::gaDoubleCrossValidation, args)
+}
+
+output <- lapply(numVars, fitOneModelSize)
+names(output) <- paste0("p", numVars)
+```
+
+Each element of `output` is a `gaQSAR_dcv` object. The object contains the results for all outer folds for one fixed number of predictors.
+
+## Optional parallel execution
+
+The double cross-validation workflow can be slow. In a real analysis, the run over `numVars` can be parallelized.
+
+```{r parallel-run}
+library(future)
+library(future.apply)
+
+useFuture <- nWorkers > 1L
+
+if (useFuture) {
+  oldPlan <- future::plan()
+  on.exit(future::plan(oldPlan), add = TRUE)
+  future::plan(future::multisession, workers = nWorkers)
+
+  output <- future.apply::future_lapply(
+    X = numVars,
+    FUN = fitOneModelSize,
+    future.seed = TRUE,
+    future.packages = "gaQSAR",
+    future.chunk.size = 1
+  )
+  names(output) <- paste0("p", numVars)
+}
+```
+
+The parallelization above is over model sizes. Depending on the computer and the data size, other choices may be faster or slower. Do not use more workers than the machine can handle comfortably.
+
+## Compare model sizes
+
+```{r compare-models}
+trainingPlot <- createDCVTrainingMetricsPlot(
+  output,
+  metrics = c("R2", "R2adj", "Q2"),
+  includeOuterQ2 = TRUE
+)
+
+print(trainingPlot)
+```
+
+This plot compares the model sizes. The training metrics describe the models fitted inside the training folds. The outer Q2 is the more important value for prediction, because it is based on compounds that were left out in the outer loop.
+
+## Select a model size
+
+```{r select-model}
+outerQ2Values <- vapply(output, function(object) object$outerQ2, numeric(1))
+bestIdx <- which.max(outerQ2Values)
+bestObj <- output[[bestIdx]]
+
+cat(sprintf("Selected model size: %d predictors\n", numVars[bestIdx]))
+cat(sprintf("Outer Q2: %.4f\n", bestObj$outerQ2))
+```
+
+This selects the model size with the highest outer Q2. That is a reasonable default, but not a law. If two model sizes perform about the same, the smaller or more interpretable model is preferable.
+
+In a manuscript, it is often better to show the full pattern over model sizes instead of only reporting the maximum.
+
+## Inspect the selected model size
+
+```{r inspect-model}
+summary(bestObj)
+plot(bestObj, type = "all")
+```
+
+The summary gives the main results of the selected double cross-validation run. The plot method can show several diagnostics, including selected descriptor frequency and object-level diagnostics.
+
+## Williams plot across outer folds
+
+```{r dcv-williams}
+williamsPlot <- createDCVWilliamsPlot(
+  bestObj,
+  label = "AquaticTox data",
+  colorBy = "fold",
+  aggregation = "none",
+  labelOutliers = "rowName"
+)
+
+print(williamsPlot + ggplot2::facet_wrap(~ fold))
+```
+
+The Williams plot combines the fold-specific training diagnostics stored in the DCV object. It is useful for checking whether the fitted models repeatedly identify high-leverage or high-residual compounds. The outer-fold predictive performance is summarized separately by the outer Q2 and the stored outer predictions.
+Faceting by fold is useful when the goal is to see whether outlying behaviour is concentrated in one split or appears repeatedly.
+
+As with all Williams plots, high leverage is not automatically a mistake. It means that the object is far from the centre of the descriptor space used by the model.
+
+## Best fitness plot
+
+```{r best-fitness}
+fitnessPlot <- createBestFitnessPlot(bestObj)
+print(fitnessPlot)
+```
+
+This plot is useful for checking whether the genetic algorithm had enough iterations to stabilize. If the best fitness is still improving near the end, more iterations may be needed.
+
+## Permutation test
+
+```{r permutation-test}
+if (permutationTest) {
+  nPermutations <- if (smokeTest) 20 else 100
+
+  permutationResult <- gaPermutationTest(
+    bestObj,
+    x = xAll,
+    nPermutations = nPermutations,
+    seed = 1,
+    validateSettings = TRUE,
+    verbose = TRUE,
+    workers = nWorkers
+  )
+
+  print(plot(permutationResult))
+  summary(permutationResult)
+}
+```
+
+The permutation test repeats the analysis after scrambling the response. This checks whether the observed performance is clearly better than what is obtained after breaking the relation between descriptors and response.
+
+The permutation test can be expensive for double cross-validation. Use a small value of `nPermutations` only for testing the code. Use a larger value for a final analysis.
+
+## Save results
+
+```{r save-results}
+save(output, file = timestampFileName(paste0(qsarLabel, "NestedCV_Results.Rdata")))
+
+if (exists("permutationResult")) {
+  save(
+    permutationResult,
+    file = timestampFileName(paste0(qsarLabel, "NestedCV_PermutationResults.Rdata"))
+  )
+}
+```
+
+## Summary
+
+The double cross-validation workflow is the safer route when the aim is to estimate predictive performance after model selection. It is slower than the train/test workflow, but it avoids putting too much weight on one single split.
+
+The result is a list of `gaQSAR_dcv` objects, one for each model size. The model sizes can then be compared by outer Q2, selection stability and diagnostic plots.

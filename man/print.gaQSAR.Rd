@@ -24,9 +24,10 @@ selected predictors, model coefficients, and data summaries.
 Prints detailed information including:
 \itemize{
 \item Number of selected predictors and their indices/names
-\item Training R2 and LOOCV Q2 metrics
+\item Training R2, adjusted R2, and LOOCV Q2 metrics
 \item External validation Q2 (if available)
 \item OLS model coefficients (intercept and slopes)
+\item Variance Inflation Factors (VIF) for each selected predictor
 \item Summary statistics for training set residuals
 \item Summary statistics for external validation residuals (if available)
 \item Information about attached plots

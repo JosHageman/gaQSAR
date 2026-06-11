@@ -16,7 +16,7 @@ splitUp(
 \item{data}{Data frame or matrix with observations in rows (predictors and/or
 response may be present; only row indices are returned).}
 
-\item{method}{Character; one of \code{"KS"} (Kennard–Stone) or \code{"random"}.}
+\item{method}{Character; one of \code{"KS"} (Kennard-Stone) or \code{"random"}.}
 
 \item{trainPercentage}{Numeric in (0, 1); fraction of observations assigned to
 the training set.}
@@ -30,7 +30,7 @@ the training set.}
 A list with integer vectors \code{model} (training indices) and \code{test} (test indices).
 }
 \description{
-Split observations into training and test sets using either a Kennard–Stone
+Split observations into training and test sets using either a Kennard-Stone
 split ("KS") based on sample representativeness or a simple random split.
 The function returns row indices for both sets.
 }
@@ -39,4 +39,11 @@ For \code{method = "KS"}, the function requires the \code{prospectr} package
 and delegates to \code{prospectr::kenStone()} with \code{k = round(trainPercentage * n)}
 on a scaled version of \code{data}. For \code{method = "random"}, rows are permuted and
 the first \code{k} indices are assigned to training.
+}
+\examples{
+set.seed(123)
+toy <- data.frame(x = rnorm(40), y = rnorm(40))
+split <- splitUp(toy, method = "random", trainPercentage = 0.75)
+str(split)
+
 }

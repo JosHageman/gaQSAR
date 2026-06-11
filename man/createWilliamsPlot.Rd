@@ -2,7 +2,7 @@
 % Please edit documentation in R/createWilliamsPlot.R
 \name{createWilliamsPlot}
 \alias{createWilliamsPlot}
-\title{Create a Williams plot for QSAR model diagnostics}
+\title{Create Williams plots for QSAR model diagnostics}
 \usage{
 createWilliamsPlot(
   output,
@@ -11,51 +11,76 @@ createWilliamsPlot(
   xtest,
   ytest,
   label = "",
-  residualThreshold = 2.5
+  residualThreshold = 2.5,
+  labelPoints = c("outliers", "all", "none")
 )
 }
 \arguments{
-\item{output}{A list-like object whose elements describe selected models.
-Each element must contain \code{importantPredictors} (names or indices of the
-predictors to use). The function augments each element with \code{williamsData}
-(a data.frame) and \code{williamsPlot} (a \code{ggplot2} object).}
+\item{output}{A \code{gaQSAR} object or a list of \code{gaQSAR} objects. Each object must
+contain \code{importantPredictors}, either as predictor names or as column indices
+referring to \code{xtrain}.}
 
-\item{xtrain}{A data.frame or matrix of training predictors. Row names are used
-as molecule identifiers; columns must cover \code{importantPredictors}.}
+\item{xtrain}{A data.frame or matrix with training predictors. Row names are
+used as object identifiers when available.}
 
-\item{ytrain}{Numeric vector of training responses aligned with \code{xtrain} rows.}
+\item{ytrain}{Numeric vector with training responses, aligned with the rows of
+\code{xtrain}.}
 
-\item{xtest}{A data.frame or matrix of test predictors with the same columns as
-\code{xtrain} (or a superset). Row names are used as molecule identifiers.}
+\item{xtest}{A data.frame or matrix with validation predictors. It must contain
+the selected predictor columns. Row names are used as object identifiers when
+available.}
 
-\item{ytest}{Numeric vector of test responses aligned with \code{xtest} rows.}
+\item{ytest}{Numeric vector with validation responses, aligned with the rows of
+\code{xtest}.}
 
 \item{label}{Optional character string appended to the plot title.}
 
-\item{residualThreshold}{Numeric threshold for standardized residuals.}
+\item{residualThreshold}{Numeric threshold for standardized residuals. The
+default is 2.5.}
+
+\item{labelPoints}{Character scalar controlling point labels: \code{"outliers"}
+labels points with high standardized residuals and/or high leverage,
+\code{"all"} labels all points, and \code{"none"} suppresses point labels. The default
+is \code{"outliers"}.}
 }
 \value{
-The input \code{output} object, with each element augmented by:
+The input object, with each \code{gaQSAR} object augmented by:
 \itemize{
-\item \code{williamsData}: data.frame with columns \code{leverages}, \code{residuals}, and \code{type}.
-\item \code{williamsPlot}: a \code{ggplot2} object containing the Williams plot.
+\\item \code{williamsData}: data.frame with object identifiers, leverages,
+residuals and dataset type.
+\\item \code{williamsPlot}: a \code{ggplot2} Williams plot.
+\\item \code{williamsOutliers}: counts of high-residual and high-leverage objects
+for the training and validation sets.
 }
 }
 \description{
-Generate a Williams plot (standardized residuals versus leverage) for each
-selected model in a GA variable selection result. Training leverages and
-standardized residuals are computed from an OLS fit on \code{xtrain}/\code{ytrain}.
-External leverages are obtained from the test design matrix using the
-training inverse information, and external standardized residuals are derived
-using the training residual standard deviation.
+Creates Williams plots for one \code{gaQSAR} object or for a list of \code{gaQSAR}
+objects. A Williams plot shows standardized residuals against leverage and is
+commonly used to inspect outliers and the applicability domain of a QSAR
+model.
 }
 \details{
-The plot displays training and external points with distinct colors.
-Horizontal reference lines are drawn at 0 and ±3 standardized residuals. The
-vertical leverage threshold is set to $h^* = 3p/n$, where $p$ is the number of
-model coefficients (including the intercept) and $n$ is the number of training
-observations.
+For each model, the selected predictors are taken from \code{importantPredictors}.
+The model is refitted on \code{xtrain} and \code{ytrain}. Training leverages are computed
+from the fitted design matrix. Validation leverages are computed from the
+validation design matrix using the inverse information matrix from the training
+data.
+
+Training standardized residuals are computed as
+\code{residual / (sigma * sqrt(1 - h))}. Validation residuals are standardized as
+prediction residuals using \code{residual / (sigma * sqrt(1 + h))}, where \code{h} is
+the leverage of the validation object relative to the training design. This
+avoids undefined residuals when validation leverages are larger than one.
+
+Horizontal reference lines are drawn at 0 and at
+\verb{+/- residualThreshold}. The leverage threshold is \code{3 * p / n}, where \code{p} is
+the number of model coefficients including the intercept and \code{n} is the
+number of training observations.
+
+Points are treated as Williams plot outliers when they have an absolute
+standardized residual larger than \code{residualThreshold} and/or a leverage
+larger than the leverage threshold.
 }
 \seealso{
-\code{\link[=createQ2Plot]{createQ2Plot()}}, \code{\link[=Q2]{Q2()}}, \code{\link[=predictOOBObjects]{predictOOBObjects()}}
+\code{\link[=Q2]{Q2()}}, \code{\link[=predictOOBObjects]{predictOOBObjects()}}
 }

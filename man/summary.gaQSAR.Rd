@@ -24,9 +24,10 @@ Prints a summary including:
 \itemize{
 \item Number of selected predictors
 \item Selected predictor indices and names (if available)
-\item Training R2 and LOOCV Q2
+\item Training R2, adjusted R2, and LOOCV Q2
 \item External validation Q2 (if available)
 \item Model coefficients
+\item Variance Inflation Factors (VIF) for each selected predictor
 \item Residual statistics for training and validation sets
 }
 }
