@@ -2,6 +2,8 @@
 
 ![R-CMD-check](https://github.com/joshageman/gaQSAR/actions/workflows/R-CMD-check.yaml/badge.svg)
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
+![CRAN status](https://www.r-pkg.org/badges/version/gaQSAR)
+![Downloads](https://cranlogs.r-pkg.org/badges/grand-total/gaQSAR)
 
 **Genetic algorithm-based variable selection for QSAR modelling**
 
