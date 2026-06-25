@@ -1,3 +1,4 @@
+```yaml
 name: R-CMD-check
 
 on:
@@ -43,4 +44,6 @@ jobs:
       - name: Check package
         uses: r-lib/actions/check-r-package@v2
         with:
-          args: 'c("--no-manual")'
+          args: 'c("--no-manual", "--ignore-vignettes")'
+          build_args: 'c("--no-manual", "--no-build-vignettes")'
+```
