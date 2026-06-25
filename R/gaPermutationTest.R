@@ -46,55 +46,41 @@
 #' @seealso [gaVariableSelection()], [gaDoubleCrossValidation()]
 #'
 #' @examples
-#' \dontrun{
-#'   # Simple example with gaQSAR object
-#'   set.seed(42)
-#'   n <- 50
-#'   p <- 20
-#'   x <- matrix(rnorm(n * p), nrow = n)
-#'   colnames(x) <- paste0("X", seq_len(p))
-#'   y <- 2 * x[, 2] - 1.5 * x[, 5] + rnorm(n, sd = 0.5)
+#' # Simple example with gaQSAR object
+#' set.seed(42)
+#' n <- 50
+#' p <- 20
+#' x <- matrix(rnorm(n * p), nrow = n)
+#' colnames(x) <- paste0("X", seq_len(p))
+#' y <- 2 * x[, 2] - 1.5 * x[, 5] + rnorm(n, sd = 0.5)
 #'
-#'   fit <- gaVariableSelection(
-#'     x = x, y = y,
-#'     numberOfVariables = 3,
-#'     popSize = 30,
-#'     maxIter = 100,
-#'     seeds = 1:3,
-#'     verbose = TRUE
-#'   )
+#' # NOTE: Settings below are example-only (fast runtime, not optimal).
+#' # For real QSAR work, use larger population sizes, more generations, and multiple seeds.
+#' # Good starting point are the default GA settings, or run an experimental design to
+#' # tune GA settings for your dataset.
+#' 
+#' fit <- gaVariableSelection(
+#'   x = x, 
+#'   y = y,
+#'   numberOfVariables = 3,
+#'   popSize = 10,
+#'   maxIter = 10,
+#'   seeds = 1, 
+#'   interval = 5,
+#'   verbose = TRUE
+#' )
 #'
-#'   permTest <- gaPermutationTest(
-#'     object = fit,
-#'     x = x,
-#'     nPermutations = 100,
-#'     verbose = TRUE
-#'   )
-#'   print(permTest)
-#'
-#'   # Simple example with gaQSAR_dcv object
-#'   dcvFit <- gaDoubleCrossValidation(
-#'     x = x, y = y,
-#'     outerMethod = "kfold",
-#'     outerK = 5,
-#'     numberOfVariables = 3,
-#'     popSize = 30,
-#'     maxIter = 100,
-#'     seed = 1,
-#'     verbose = TRUE 
-#'   )
-#'
-#'   permTestDCV <- gaPermutationTest(
-#'     object = dcvFit,
-#'     x = x,
-#'     nPermutations = 50,
-#'     verbose = TRUE
-#'   )
-#'   print(permTestDCV)
-#' }
+#' # For a meaningful permutation test, use a larger number of permutations (e.g., 100 or more).
+#' permTest <- gaPermutationTest(
+#'   object = fit,
+#'   x = x,
+#'   nPermutations = 2,  # small number for example; use 100+ for real tests
+#'   verbose = TRUE
+#' )
+#' print(permTest)
 #'
 #' @export
-gaPermutationTest <- function(object, x, nPermutations = 100, seed = NULL, 
+gaPermutationTest <- function(object, x, nPermutations = 500, seed = NULL, 
                               validateSettings = FALSE, verbose = FALSE, 
                               workers = 1, ...) {
 

@@ -93,6 +93,9 @@ y <- 1.5 * x[, 2] - 0.8 * x[, 7] + rnorm(n, sd = 0.5)
 
 # Run GA variable selection
 # NOTE: Settings below are example-only (fast runtime, not optimal).
+# For real QSAR work, use larger population sizes, more generations, and multiple seeds.
+# Good starting point are the default GA settings, or run an experimental design to
+# tune GA settings for your dataset.
 fit <- gaVariableSelection(
   x = x,
   y = y,
@@ -100,8 +103,7 @@ fit <- gaVariableSelection(
   popSize = 20,                # small population for speed (increase in real runs)
   maxIter = 20,                # few generations for speed (increase in real runs)
   seeds = 1,                   # single seed for a minimal example (use multiple seeds)
-  interval = 5,                # print progress every 5 generations when verbose=TRUE
-  verbose = FALSE
+  interval = 5                # print progress every 5 generations when verbose=TRUE
 )
 
 # Methods for gaQSAR objects

@@ -3,7 +3,7 @@
 #' Performs nested cross-validation combining an outer CV loop (for final model
 #' assessment) with an inner CV loop (used by the GA for fitness evaluation during
 #' variable selection). The inner loop always uses LOOCV via `singleCV` as the
-#' GA fitness. The outer loop may be leave-one-out (default) or k-fold, providing
+#' GA fitness. The outer loop may be leave-one-out or k-fold (default), providing
 #' an unbiased estimate of outer-loop predictive performance and stability analysis
 #' of selected predictors.
 #'
@@ -75,30 +75,36 @@
 #' @seealso [gaVariableSelection()], [singleCV()], [Q2()], [createWilliamsPlot()]
 #'
 #' @examples
-#' \dontrun{
-#'   set.seed(42)
-#'   n <- 50
-#'   p <- 20
-#'   x <- matrix(rnorm(n * p), nrow = n)
-#'   colnames(x) <- paste0("X", seq_len(p))
-#'   y <- 2 * x[, 2] - 1.5 * x[, 5] + rnorm(n, sd = 0.5)
+#' set.seed(42)
+#' n <- 50
+#' p <- 20
+#' x <- matrix(rnorm(n * p), nrow = n)
+#' colnames(x) <- paste0("X", seq_len(p))
+#' y <- 2 * x[, 2] - 1.5 * x[, 5] + rnorm(n, sd = 0.5)
 #'
-#'   # Nested CV with LOO outer and inner LOOCV fitness (slow, but thorough)
-#'   dcvFit <- gaDoubleCrossValidation(
-#'     x = x, y = y,
-#'     outerMethod = "loo",
-#'     numberOfVariables = 3,
-#'     popSize = 30,
-#'     maxIter = 100,
-#'     seed = 1
-#'   )
+#' # Nested CV with LOO outer and inner LOOCV fitness
+#' # NOTE: Settings below are example-only (fast runtime, not optimal).
+#' # For real QSAR work, use larger population sizes, more generations, and multiple seeds.
+#' # Good starting point are the default GA settings, or run an experimental design to
+#' # tune GA settings for your dataset.
+#' dcvFit <- gaDoubleCrossValidation(
+#'   x = x,
+#'   y = y,
+#'   outerMethod = "kfold",
+#'   outerK = 2,
+#'   numberOfVariables = 3,
+#'   popSize = 20,
+#'   maxIter = 20,
+#'   seeds = 1,
+#'   interval = 5,
+#'   verbose = TRUE
+#' )
 #'
-#'   print(dcvFit)
-#'   summary(dcvFit)
-#'   plot(dcvFit)
-#'   plot(dcvFit, type = "selectionFrequency")
-#'   plot(dcvFit, type = "williamsFrequency")
-#' }
+#' print(dcvFit)
+#' summary(dcvFit)
+#' plot(dcvFit)
+#' plot(dcvFit, type = "selectionFrequency")
+#' plot(dcvFit, type = "williamsFrequency")
 #'
 #' @export
 gaDoubleCrossValidation <- function(x, y,

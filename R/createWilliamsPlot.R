@@ -47,13 +47,9 @@
 #'   larger than the leverage threshold.
 #'
 #' @return The input object, with each `gaQSAR` object augmented by:
-#'   \itemize{
-#'     \\item `williamsData`: data.frame with object identifiers, leverages,
-#'       residuals and dataset type.
-#'     \\item `williamsPlot`: a `ggplot2` Williams plot.
-#'     \\item `williamsOutliers`: counts of high-residual and high-leverage objects
-#'       for the training and validation sets.
-#'   }
+#'     - `williamsData`: data.frame with object identifiers, leverages, residuals and dataset type.
+#'     - `williamsPlot`: a `ggplot2` Williams plot.
+#'     - `williamsOutliers`: counts of high-residual and high-leverage objects
 #'
 #' @seealso [Q2()], [predictOOBObjects()]
 #'

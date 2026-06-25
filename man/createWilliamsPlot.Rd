@@ -45,13 +45,9 @@ is \code{"outliers"}.}
 }
 \value{
 The input object, with each \code{gaQSAR} object augmented by:
-\itemize{
-\\item \code{williamsData}: data.frame with object identifiers, leverages,
-residuals and dataset type.
-\\item \code{williamsPlot}: a \code{ggplot2} Williams plot.
-\\item \code{williamsOutliers}: counts of high-residual and high-leverage objects
-for the training and validation sets.
-}
+- \code{williamsData}: data.frame with object identifiers, leverages, residuals and dataset type.
+- \code{williamsPlot}: a \code{ggplot2} Williams plot.
+- \code{williamsOutliers}: counts of high-residual and high-leverage objects
 }
 \description{
 Creates Williams plots for one \code{gaQSAR} object or for a list of \code{gaQSAR}
