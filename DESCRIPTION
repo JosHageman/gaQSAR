@@ -3,6 +3,7 @@ Type: Package
 Title: QSAR Modelling Using Genetic Algorithm Based Variable Selection
 Version: 1.2.3
 Authors@R: person("Jos", "Hageman", email = "jos.hageman@wur.nl", role = c("aut", "cre"))
+Depends: R (>= 4.1.0)
 Description: Implements genetic algorithm-based variable selection for building 
     quantitative structure-activity relationship (QSAR) models. The package provides 
     a workflow for selecting optimal predictor subsets from large 
